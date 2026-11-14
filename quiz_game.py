@@ -6,7 +6,7 @@ import random
 from pathlib import Path
 
 from default_quizzes import get_default_quizzes
-from input_utils import ask_int, ask_int_or_command, ask_text
+from input_utils import ask_int, ask_int_or_command, ask_text, ask_yes_no
 from quiz import Quiz
 
 LINE = "=" * 40
@@ -15,7 +15,7 @@ LINE = "=" * 40
 class QuizGame:
     """퀴즈 게임 전체를 관리한다."""
 
-    HINT_COMMAND = "h"  # 11-2: 퀴즈 풀이 중 힌트를 볼 때 입력하는 명령어
+    HINT_COMMAND = "h"  # 퀴즈 풀이 중 힌트를 볼 때 입력하는 명령어
 
     def __init__(self, state_path: Path) -> None:
         self.state_path = Path(state_path)
@@ -27,11 +27,13 @@ class QuizGame:
         self.is_running = True
 
         # 메뉴 = (화면에 보일 이름, 실행할 메서드) 목록.
+        # 메뉴를 추가/변경할 때 이 리스트만 고치면 출력과 실행이 함께 바뀐다.
         self.menu = [
             ("퀴즈 풀기", self.play_quiz),
             ("퀴즈 추가", self.add_quiz),
             ("퀴즈 목록", self.list_quizzes),
             ("점수 확인", self.show_score),
+            ("퀴즈 삭제", self.delete_quiz),  # 11-3
             ("종료", self.exit_game),
         ]
 
@@ -81,7 +83,7 @@ class QuizGame:
         # random.sample: 원본 목록은 그대로 두고, 겹치지 않게 total개를 무작위 순서로 뽑는다.
         selected = random.sample(self.quizzes, total)
         correct_count = 0
-        hinted_correct_count = 0  # 11-2: 힌트를 보고 맞힌 문제 수 (점수 절반 인정)
+        hinted_correct_count = 0  # 힌트를 보고 맞힌 문제 수 (점수 절반 인정)
         hints_used = 0
         print(f"\n📝 퀴즈를 시작합니다! (총 {total}문제, 랜덤 출제)")
         print(f"💡 정답 입력 칸에 '{self.HINT_COMMAND}'를 입력하면 힌트를 볼 수 있어요. (맞히면 점수 절반)")
@@ -99,7 +101,7 @@ class QuizGame:
         self.show_result(score, correct_count, total, hints_used)
 
     def ask_one_question(self, quiz: Quiz, number: int) -> tuple[bool, bool]:
-        """11-2: 문제 하나를 출제한다. (정답 여부, 힌트 사용 여부)를 돌려준다."""
+        """문제 하나를 출제한다. (정답 여부, 힌트 사용 여부)를 돌려준다."""
         print("\n" + "-" * 40)
         quiz.display(number)
         used_hint = False
@@ -130,7 +132,7 @@ class QuizGame:
 
     @staticmethod
     def calculate_score(correct: int, hinted_correct: int, total: int) -> int:
-        """11-2: 100점 만점 점수로 환산한다.
+        """100점 만점 점수로 환산한다.
 
         힌트 없이 맞힌 문제는 1문제, 힌트를 보고 맞힌 문제는 0.5문제로 계산한다.
         예) 5문제 중 4문제 정답(그중 1문제 힌트 사용) → (3 + 0.5) / 5 × 100 = 70점
@@ -177,7 +179,7 @@ class QuizGame:
             choices.append(choice)
 
         answer = ask_int(f"정답 번호 (1-{Quiz.CHOICE_COUNT}): ", 1, Quiz.CHOICE_COUNT)
-        hint = input("힌트 (없으면 Enter): ").strip()  # 11-2: 힌트는 선택 입력
+        hint = input("힌트 (없으면 Enter): ").strip()  # 힌트는 선택 입력
 
         self.quizzes.append(Quiz(question, choices, answer, hint))
         if self.save_state():
@@ -214,7 +216,31 @@ class QuizGame:
         )
 
     # ------------------------------------------------------------------
-    # 5. 종료
+    # 5. 퀴즈 삭제 (보너스 11-3)
+    # ------------------------------------------------------------------
+    def delete_quiz(self) -> None:
+        """목록에서 번호를 골라 퀴즈를 삭제하고 파일에 반영한다."""
+        if not self.quizzes:
+            print("\n📭 삭제할 퀴즈가 없습니다.")
+            return
+
+        self.list_quizzes()
+        number = ask_int(f"삭제할 퀴즈 번호 (1-{len(self.quizzes)}, 취소: 0): ", 0, len(self.quizzes))
+        if number == 0:
+            print("↩️ 삭제를 취소했습니다.")
+            return
+
+        target = self.quizzes[number - 1]
+        if not ask_yes_no(f"'{target.question}' 퀴즈를 삭제할까요? (y/n): "):
+            print("↩️ 삭제를 취소했습니다.")
+            return
+
+        self.quizzes.pop(number - 1)
+        self.save_state()
+        print(f"🗑️ 퀴즈를 삭제했습니다. (남은 퀴즈 {len(self.quizzes)}개)")
+
+    # ------------------------------------------------------------------
+    # 6. 종료
     # ------------------------------------------------------------------
     def exit_game(self) -> None:
         self.save_state()

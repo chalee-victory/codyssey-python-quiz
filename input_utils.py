@@ -66,3 +66,13 @@ def ask_int_or_command(prompt: str, min_value: int, max_value: int, commands: se
             print(error_message)
             continue
         return value
+
+def ask_yes_no(prompt: str) -> bool:
+    """y/n을 입력받아 y면 True, n이면 False를 돌려준다."""
+    while True:
+        answer = input(prompt).strip().lower()
+        if answer in ("y", "yes"):
+            return True
+        if answer in ("n", "no"):
+            return False
+        print("⚠️ y 또는 n을 입력하세요.")
