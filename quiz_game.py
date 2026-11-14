@@ -65,8 +65,7 @@ class QuizGame:
                 correct_count += 1
                 print("✅ 정답입니다!")
             else:
-                print("❌ 오답입니다.")
-
+                print(f"❌ 오답입니다. 정답은 {quiz.answer}번 ({quiz.correct_choice_text()}) 입니다.")
         score = round(correct_count / total * 100)
         print("\n" + LINE)
         print(f"🏆 결과: {total}문제 중 {correct_count}문제 정답! ({score}점)")
