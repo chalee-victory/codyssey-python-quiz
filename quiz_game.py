@@ -3,6 +3,7 @@
 import json
 import os
 import random
+from datetime import datetime
 from pathlib import Path
 
 from default_quizzes import get_default_quizzes
@@ -24,6 +25,8 @@ class QuizGame:
         self.best_score: int | None = None
         self.best_correct = 0
         self.best_total = 0
+        # 11-4: 모든 게임 기록. 각 항목은 {"played_at", "total", "correct", "hints_used", "score"} dict.
+        self.history: list[dict] = []
         self.is_running = True
 
         # 메뉴 = (화면에 보일 이름, 실행할 메서드) 목록.
@@ -33,7 +36,8 @@ class QuizGame:
             ("퀴즈 추가", self.add_quiz),
             ("퀴즈 목록", self.list_quizzes),
             ("점수 확인", self.show_score),
-            ("퀴즈 삭제", self.delete_quiz),  # 11-3
+            ("퀴즈 삭제", self.delete_quiz),
+            ("게임 기록", self.show_history),  # 11-4
             ("종료", self.exit_game),
         ]
 
@@ -99,6 +103,8 @@ class QuizGame:
 
         score = self.calculate_score(correct_count, hinted_correct_count, total)
         self.show_result(score, correct_count, total, hints_used)
+        self.record_history(score, correct_count, total, hints_used)  # 11-4
+        self.save_state()  # 11-4: 최고 점수·기록을 바로 파일에 반영
 
     def ask_one_question(self, quiz: Quiz, number: int) -> tuple[bool, bool]:
         """문제 하나를 출제한다. (정답 여부, 힌트 사용 여부)를 돌려준다."""
@@ -158,9 +164,20 @@ class QuizGame:
             self.best_score = score
             self.best_correct = correct
             self.best_total = total
-            self.save_state()  # 최고 점수가 바뀌면 바로 파일에 기록
             return True
         return False
+
+    def record_history(self, score: int, correct: int, total: int, hints_used: int) -> None:
+        """11-4: 이번 게임 결과를 기록 목록에 추가한다."""
+        self.history.append(
+            {
+                "played_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "total": total,
+                "correct": correct,
+                "hints_used": hints_used,
+                "score": score,
+            }
+        )
 
     # ------------------------------------------------------------------
     # 2. 퀴즈 추가
@@ -216,7 +233,7 @@ class QuizGame:
         )
 
     # ------------------------------------------------------------------
-    # 5. 퀴즈 삭제 (보너스 11-3)
+    # 5. 퀴즈 삭제 (보너스)
     # ------------------------------------------------------------------
     def delete_quiz(self) -> None:
         """목록에서 번호를 골라 퀴즈를 삭제하고 파일에 반영한다."""
@@ -240,7 +257,28 @@ class QuizGame:
         print(f"🗑️ 퀴즈를 삭제했습니다. (남은 퀴즈 {len(self.quizzes)}개)")
 
     # ------------------------------------------------------------------
-    # 6. 종료
+    # 6. 게임 기록 (보너스 11-4)
+    # ------------------------------------------------------------------
+    def show_history(self) -> None:
+        """지금까지의 모든 게임 기록을 보여 준다."""
+        if not self.history:
+            print("\n📭 아직 게임 기록이 없습니다.")
+            return
+
+        print(f"\n📜 게임 기록 (총 {len(self.history)}회)\n")
+        print("-" * 40)
+        for number, record in enumerate(self.history, start=1):
+            print(
+                f"{number:>3}. {record['played_at']} | "
+                f"{record['total']}문제 중 {record['correct']}문제 정답 | "
+                f"힌트 {record['hints_used']}회 | {record['score']}점"
+            )
+        print("-" * 40)
+        if self.best_score is not None:
+            print(f"🏆 최고 점수: {self.best_score}점")
+
+    # ------------------------------------------------------------------
+    # 7. 종료
     # ------------------------------------------------------------------
     def exit_game(self) -> None:
         self.save_state()
@@ -257,6 +295,7 @@ class QuizGame:
             "best_score": self.best_score,
             "best_correct": self.best_correct,
             "best_total": self.best_total,
+            "history": self.history,  # 11-4
         }
 
     def save_state(self) -> bool:
@@ -317,8 +356,18 @@ class QuizGame:
             if not 0 <= best_score <= 100:
                 raise ValueError("best_score는 0~100 사이여야 합니다.")
 
+        # 11-4: 예전 파일에는 history가 없을 수 있으므로 get으로 꺼낸다.
+        history = data.get("history", [])
+        if not isinstance(history, list):
+            raise ValueError("history는 리스트여야 합니다.")
+        required_keys = {"played_at", "total", "correct", "hints_used", "score"}
+        for record in history:
+            if not isinstance(record, dict) or not required_keys <= record.keys():
+                raise ValueError("history 항목 형식이 올바르지 않습니다.")
+
         # 모든 검사를 통과한 뒤에 한꺼번에 반영 → 절반만 반영되는 일을 막는다.
         self.quizzes = quizzes
+        self.history = history
         self.best_score = best_score
         self.best_correct = best_correct if best_score is not None else 0
         self.best_total = best_total if best_score is not None else 0
@@ -340,4 +389,5 @@ class QuizGame:
         self.best_score = None
         self.best_correct = 0
         self.best_total = 0
+        self.history = []
         self.save_state()
