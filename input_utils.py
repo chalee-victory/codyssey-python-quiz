@@ -29,3 +29,12 @@ def ask_int(prompt: str, min_value: int, max_value: int) -> int:
             continue
 
         return value
+    
+
+def ask_text(prompt: str) -> str:
+    """비어 있지 않은 문자열을 입력받아 (앞뒤 공백을 제거해) 반환한다."""
+    while True:
+        text = input(prompt).strip()
+        if text:
+            return text
+        print("⚠️ 입력이 비어 있습니다. 내용을 입력하세요.")
