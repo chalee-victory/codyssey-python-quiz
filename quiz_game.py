@@ -6,7 +6,7 @@ import random
 from pathlib import Path
 
 from default_quizzes import get_default_quizzes
-from input_utils import ask_int, ask_text
+from input_utils import ask_int, ask_int_or_command, ask_text
 from quiz import Quiz
 
 LINE = "=" * 40
@@ -15,8 +15,10 @@ LINE = "=" * 40
 class QuizGame:
     """퀴즈 게임 전체를 관리한다."""
 
+    HINT_COMMAND = "h"  # 11-2: 퀴즈 풀이 중 힌트를 볼 때 입력하는 명령어
+
     def __init__(self, state_path: Path) -> None:
-        self.state_path = Path(state_path)  # 10단계: 데이터 파일 위치
+        self.state_path = Path(state_path)
         self.quizzes: list[Quiz] = get_default_quizzes()
         # 최고 점수 정보. 아직 한 번도 풀지 않았으면 None으로 구분한다.
         self.best_score: int | None = None
@@ -41,7 +43,7 @@ class QuizGame:
         print(LINE)
         print("        🎯 나만의 퀴즈 게임 🎯")
         print(LINE)
-        self.load_state()  # 10단계
+        self.load_state()
 
         try:
             while self.is_running:
@@ -52,7 +54,7 @@ class QuizGame:
         except (KeyboardInterrupt, EOFError):
             # Ctrl+C 또는 입력 스트림 종료 → 비정상 종료 대신 저장 후 안내하고 종료
             print("\n\n⚠️ 입력이 중단되었습니다. 데이터를 저장하고 안전하게 종료합니다.")
-            self.save_state()  # 10단계
+            self.save_state()
 
     def show_menu(self) -> None:
         print()
@@ -66,8 +68,6 @@ class QuizGame:
     # ------------------------------------------------------------------
     # 1. 퀴즈 풀기
     # ------------------------------------------------------------------
-
-
     def play_quiz(self) -> None:
         """풀 문제 수를 고르게 한 뒤, 퀴즈를 무작위 순서로 출제하고 결과를 보여 준다."""
         if not self.quizzes:
@@ -81,37 +81,69 @@ class QuizGame:
         # random.sample: 원본 목록은 그대로 두고, 겹치지 않게 total개를 무작위 순서로 뽑는다.
         selected = random.sample(self.quizzes, total)
         correct_count = 0
+        hinted_correct_count = 0  # 11-2: 힌트를 보고 맞힌 문제 수 (점수 절반 인정)
+        hints_used = 0
         print(f"\n📝 퀴즈를 시작합니다! (총 {total}문제, 랜덤 출제)")
+        print(f"💡 정답 입력 칸에 '{self.HINT_COMMAND}'를 입력하면 힌트를 볼 수 있어요. (맞히면 점수 절반)")
 
         for number, quiz in enumerate(selected, start=1):  # 정해진 목록을 순회 → for
-            if self.ask_one_question(quiz, number):
+            is_correct, used_hint = self.ask_one_question(quiz, number)
+            if used_hint:
+                hints_used += 1
+            if is_correct:
                 correct_count += 1
+                if used_hint:
+                    hinted_correct_count += 1
 
-        score = self.calculate_score(correct_count, total)
-        self.show_result(score, correct_count, total)
+        score = self.calculate_score(correct_count, hinted_correct_count, total)
+        self.show_result(score, correct_count, total, hints_used)
 
-
-    def ask_one_question(self, quiz: Quiz, number: int) -> bool:
-        """문제 하나를 출제하고 정답이면 True를 돌려준다."""
+    def ask_one_question(self, quiz: Quiz, number: int) -> tuple[bool, bool]:
+        """11-2: 문제 하나를 출제한다. (정답 여부, 힌트 사용 여부)를 돌려준다."""
         print("\n" + "-" * 40)
         quiz.display(number)
-        user_answer = ask_int(f"정답 입력 (1-{Quiz.CHOICE_COUNT}): ", 1, Quiz.CHOICE_COUNT)
+        used_hint = False
 
-        if quiz.is_correct(user_answer):
-            print("✅ 정답입니다!")
-            return True
+        while True:  # 힌트를 본 뒤에는 같은 문제의 답을 다시 받아야 하므로 반복
+            user_input = ask_int_or_command(
+                f"정답 입력 (1-{Quiz.CHOICE_COUNT}, 힌트: {self.HINT_COMMAND}): ",
+                1,
+                Quiz.CHOICE_COUNT,
+                {self.HINT_COMMAND},
+            )
+            if user_input != self.HINT_COMMAND:
+                break
+            if not quiz.has_hint():
+                print("🙅 이 문제에는 힌트가 없습니다.")
+                continue
+            print(f"💡 힌트: {quiz.hint}")
+            used_hint = True
+
+        if quiz.is_correct(user_input):
+            if used_hint:
+                print("✅ 정답입니다! (힌트 사용으로 점수 절반 인정)")
+            else:
+                print("✅ 정답입니다!")
+            return True, used_hint
         print(f"❌ 오답입니다. 정답은 {quiz.answer}번 ({quiz.correct_choice_text()}) 입니다.")
-        return False
+        return False, used_hint
 
     @staticmethod
-    def calculate_score(correct: int, total: int) -> int:
-        """정답 수를 100점 만점 점수로 환산한다."""
-        return round(correct / total * 100)
+    def calculate_score(correct: int, hinted_correct: int, total: int) -> int:
+        """11-2: 100점 만점 점수로 환산한다.
 
-    def show_result(self, score: int, correct: int, total: int) -> None:
+        힌트 없이 맞힌 문제는 1문제, 힌트를 보고 맞힌 문제는 0.5문제로 계산한다.
+        예) 5문제 중 4문제 정답(그중 1문제 힌트 사용) → (3 + 0.5) / 5 × 100 = 70점
+        """
+        earned = (correct - hinted_correct) + hinted_correct * 0.5
+        return round(earned / total * 100)
+
+    def show_result(self, score: int, correct: int, total: int, hints_used: int = 0) -> None:
         """결과를 출력하고 최고 점수를 갱신한다."""
         print("\n" + LINE)
         print(f"🏆 결과: {total}문제 중 {correct}문제 정답! ({score}점)")
+        if hints_used:
+            print(f"💡 힌트 사용: {hints_used}회")
         if self.update_best_score(score, correct, total):
             print("🎉 새로운 최고 점수입니다!")
         else:
@@ -124,7 +156,7 @@ class QuizGame:
             self.best_score = score
             self.best_correct = correct
             self.best_total = total
-            self.save_state()  # 10단계: 최고 점수가 바뀌면 바로 파일에 기록
+            self.save_state()  # 최고 점수가 바뀌면 바로 파일에 기록
             return True
         return False
 
@@ -132,7 +164,7 @@ class QuizGame:
     # 2. 퀴즈 추가
     # ------------------------------------------------------------------
     def add_quiz(self) -> None:
-        """문제, 선택지 4개, 정답 번호를 입력받아 새 퀴즈를 등록한다."""
+        """문제, 선택지 4개, 정답 번호, 힌트(선택)를 입력받아 새 퀴즈를 등록한다."""
         print("\n📌 새로운 퀴즈를 추가합니다.\n")
         question = ask_text("문제를 입력하세요: ")
 
@@ -145,9 +177,10 @@ class QuizGame:
             choices.append(choice)
 
         answer = ask_int(f"정답 번호 (1-{Quiz.CHOICE_COUNT}): ", 1, Quiz.CHOICE_COUNT)
+        hint = input("힌트 (없으면 Enter): ").strip()  # 11-2: 힌트는 선택 입력
 
-        self.quizzes.append(Quiz(question, choices, answer))
-        if self.save_state():  # 10단계: 추가한 퀴즈를 파일에 저장
+        self.quizzes.append(Quiz(question, choices, answer, hint))
+        if self.save_state():
             print(f"\n✅ 퀴즈가 추가되었습니다! (현재 총 {len(self.quizzes)}개)")
         else:
             print("\n⚠️ 퀴즈는 추가했지만 파일 저장에 실패했습니다. 종료 시 다시 저장을 시도합니다.")
@@ -184,12 +217,12 @@ class QuizGame:
     # 5. 종료
     # ------------------------------------------------------------------
     def exit_game(self) -> None:
-        self.save_state()  # 10단계
+        self.save_state()
         print("\n👋 게임을 종료합니다. 다음에 또 만나요!")
         self.is_running = False
 
     # ------------------------------------------------------------------
-    # 10단계: 파일 저장 / 불러오기 (state.json)
+    # 파일 저장 / 불러오기 (state.json)
     # ------------------------------------------------------------------
     def to_state(self) -> dict:
         """현재 게임 상태를 JSON으로 저장할 dict로 만든다."""

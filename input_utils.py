@@ -29,7 +29,7 @@ def ask_int(prompt: str, min_value: int, max_value: int) -> int:
             continue
 
         return value
-    
+
 
 def ask_text(prompt: str) -> str:
     """비어 있지 않은 문자열을 입력받아 (앞뒤 공백을 제거해) 반환한다."""
@@ -38,3 +38,31 @@ def ask_text(prompt: str) -> str:
         if text:
             return text
         print("⚠️ 입력이 비어 있습니다. 내용을 입력하세요.")
+
+
+def ask_int_or_command(prompt: str, min_value: int, max_value: int, commands: set[str]) -> int | str:
+    """범위 안의 정수 또는 지정된 명령어(예: 'h')를 입력받는다.
+
+    정수면 int를, 명령어면 소문자 문자열을 돌려준다.
+    """
+    command_text = "/".join(sorted(commands))
+    error_message = (
+        f"⚠️ 잘못된 입력입니다. {min_value}-{max_value} 사이의 숫자 또는 '{command_text}'를 입력하세요."
+    )
+
+    while True:
+        raw = input(prompt).strip()
+        if raw == "":
+            print("⚠️ 입력이 비어 있습니다. 숫자를 입력하세요.")
+            continue
+        if raw.lower() in commands:
+            return raw.lower()
+        try:
+            value = int(raw)
+        except ValueError:
+            print(error_message)
+            continue
+        if not min_value <= value <= max_value:
+            print(error_message)
+            continue
+        return value
