@@ -14,6 +14,10 @@ class QuizGame:
 
     def __init__(self) -> None:
         self.quizzes: list[Quiz] = get_default_quizzes()
+        # 8단계: 최고 점수 정보. 아직 한 번도 풀지 않았으면 None으로 구분한다.
+        self.best_score: int | None = None
+        self.best_correct = 0
+        self.best_total = 0
         self.is_running = True
 
     def show_menu(self) -> None:
@@ -36,12 +40,10 @@ class QuizGame:
                     self.play_quiz()
                 elif choice == 2:
                     self.add_quiz()
-                
                 elif choice == 3:
                     self.list_quizzes()
-
                 elif choice == 4:
-                    print("\n🚧 점수 확인 기능은 준비 중입니다.")
+                    self.show_score()  # 8단계
                 else:
                     self.exit_game()
         except (KeyboardInterrupt, EOFError):
@@ -68,11 +70,25 @@ class QuizGame:
                 print("✅ 정답입니다!")
             else:
                 print(f"❌ 오답입니다. 정답은 {quiz.answer}번 ({quiz.correct_choice_text()}) 입니다.")
+
         score = round(correct_count / total * 100)
         print("\n" + LINE)
         print(f"🏆 결과: {total}문제 중 {correct_count}문제 정답! ({score}점)")
+        # 8단계: 최고 점수와 비교·갱신
+        if self.update_best_score(score, correct_count, total):
+            print("🎉 새로운 최고 점수입니다!")
+        else:
+            print(f"📈 현재 최고 점수: {self.best_score}점")
         print(LINE)
 
+    def update_best_score(self, score: int, correct: int, total: int) -> bool:
+        """8단계: 이번 점수가 최고 점수보다 높으면 갱신하고 True를 돌려준다."""
+        if self.best_score is None or score > self.best_score:
+            self.best_score = score
+            self.best_correct = correct
+            self.best_total = total
+            return True
+        return False
 
     def add_quiz(self) -> None:
         """문제, 선택지 4개, 정답 번호를 입력받아 새 퀴즈를 등록한다."""
@@ -92,7 +108,6 @@ class QuizGame:
         self.quizzes.append(Quiz(question, choices, answer))
         print(f"\n✅ 퀴즈가 추가되었습니다! (현재 총 {len(self.quizzes)}개)")
 
-
     def list_quizzes(self) -> None:
         """등록된 퀴즈의 문제 목록을 번호와 함께 보여 준다."""
         if not self.quizzes:
@@ -105,6 +120,15 @@ class QuizGame:
             print(f"[{number}] {quiz.question}")
         print("-" * 40)
 
+    def show_score(self) -> None:
+        """8단계: 최고 점수를 보여 준다. 아직 풀지 않았다면 안내한다."""
+        if self.best_score is None:
+            print("\n📭 아직 퀴즈를 풀지 않았습니다. 먼저 퀴즈를 풀어 보세요!")
+            return
+        print(
+            f"\n🏆 최고 점수: {self.best_score}점 "
+            f"({self.best_total}문제 중 {self.best_correct}문제 정답)"
+        )
 
     def exit_game(self) -> None:
         print("\n👋 게임을 종료합니다. 다음에 또 만나요!")
