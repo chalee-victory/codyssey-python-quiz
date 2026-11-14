@@ -2,6 +2,7 @@
 
 import json
 import os
+import random
 from pathlib import Path
 
 from default_quizzes import get_default_quizzes
@@ -65,22 +66,30 @@ class QuizGame:
     # ------------------------------------------------------------------
     # 1. 퀴즈 풀기
     # ------------------------------------------------------------------
+
+
     def play_quiz(self) -> None:
-        """저장된 퀴즈를 차례로 출제하고 결과를 보여 준다."""
+        """풀 문제 수를 고르게 한 뒤, 퀴즈를 무작위 순서로 출제하고 결과를 보여 준다."""
         if not self.quizzes:
             print("\n📭 등록된 퀴즈가 없습니다. 먼저 퀴즈를 추가해 주세요.")
             return
 
-        total = len(self.quizzes)
-        correct_count = 0
-        print(f"\n📝 퀴즈를 시작합니다! (총 {total}문제)")
+        available = len(self.quizzes)
+        print(f"\n등록된 퀴즈는 {available}개입니다.")
+        total = ask_int(f"몇 문제를 풀까요? (1-{available}): ", 1, available)
 
-        for number, quiz in enumerate(self.quizzes, start=1):  # 정해진 목록을 순회 → for
+        # random.sample: 원본 목록은 그대로 두고, 겹치지 않게 total개를 무작위 순서로 뽑는다.
+        selected = random.sample(self.quizzes, total)
+        correct_count = 0
+        print(f"\n📝 퀴즈를 시작합니다! (총 {total}문제, 랜덤 출제)")
+
+        for number, quiz in enumerate(selected, start=1):  # 정해진 목록을 순회 → for
             if self.ask_one_question(quiz, number):
                 correct_count += 1
 
         score = self.calculate_score(correct_count, total)
         self.show_result(score, correct_count, total)
+
 
     def ask_one_question(self, quiz: Quiz, number: int) -> bool:
         """문제 하나를 출제하고 정답이면 True를 돌려준다."""
