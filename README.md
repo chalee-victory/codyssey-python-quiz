@@ -188,3 +188,7 @@ codyssey-python-quiz/
 - 기능 단위로 커밋하고, 커밋 메시지에 종류와 변경 요약을 적었습니다. (`Feat:`, `Refactor:`, `Docs:`, `Chore:`)
 - `feature/play-quiz` 브랜치에서 퀴즈 풀기 기능을, `feature/bonus` 브랜치에서 보너스 기능을 개발한 뒤 `git merge --no-ff`로 `main`에 병합했습니다.
 - 사용한 Git 명령어: `init`, `add`, `commit`, `push`, `checkout`, `merge`, `clone`, `pull`
+
+
+## 9. clone·pull 실습 기록
+- 별도 폴더(`c:\dev\codyssey-clone`)에 저장소를 clone한 뒤, 이 문단을 추가해 commit·push하고 원래 작업 폴더에서 pull로 받아 왔습니다.
