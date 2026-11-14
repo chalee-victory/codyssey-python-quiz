@@ -106,6 +106,23 @@ codyssey-python-quiz/
 | `Quiz` | 퀴즈 1문제 | `question`, `choices`, `answer`, `hint` | `display()`, `is_correct()`, `to_dict()`, `from_dict()` |
 | `QuizGame` | 게임 전체 관리 | `quizzes`, `best_score`, `history`, `menu`, `state_path` | `run()`, `play_quiz()`, `add_quiz()`, `list_quizzes()`, `show_score()`, `delete_quiz()`, `show_history()`, `save_state()`, `load_state()` |
 
+### 왜 클래스를 사용했나 (함수만 쓰는 방식과 비교)
+
+게임에는 **계속 기억해야 하는 상태**(퀴즈 목록, 최고 점수, 기록, 실행 여부)가 있습니다.
+`QuizGame` 클래스로 만들면 이 상태를 `self.quizzes`, `self.best_score` 같은 **속성**으로 한곳에 두고, 풀기·추가·저장 같은 **메서드**가 `self`를 통해 같은 데이터를 함께 씁니다.
+`Quiz` 클래스는 문제·선택지·정답이라는 **데이터와 그 데이터를 다루는 기능**(출력, 정답 확인, JSON 변환, 생성 시 유효성 검사)을 한 덩어리로 묶어, 잘못된 퀴즈가 만들어지지 않게 합니다.
+
+| 비교 | 함수만 사용 | 클래스 사용 (이 프로젝트) |
+|---|---|---|
+| 상태 보관 | 전역 변수를 쓰거나 매번 매개변수로 넘겨야 함 | 객체 속성(`self.xxx`)에 보관 |
+| 코드 구조 | 데이터와 기능이 흩어짐 | 데이터 + 기능이 한 덩어리 (캡슐화) |
+| 유효성 검사 | 사용하는 곳마다 반복 | `Quiz.__init__` 한 곳에서 처리 |
+| 기능 추가 | 관련 함수를 찾아 여러 곳 수정 | `QuizGame`에 메서드 추가 + 메뉴 표에 한 줄 추가 |
+| 단점 | — | 작은 프로그램에서는 코드가 조금 길어짐 |
+
+`input_utils.py`는 기억할 상태 없이 "입력받아 검사 후 돌려주기"만 하므로 클래스가 아닌 **함수**로 두었습니다.
+즉, **입력 검증(`input_utils`) – 데이터 표현(`Quiz`) – 게임 흐름과 파일 입출력(`QuizGame`)**으로 책임을 나눴습니다.
+
 ---
 
 ## 6. 데이터 파일 설명 (`state.json`)
@@ -160,6 +177,24 @@ codyssey-python-quiz/
 }
 ```
 
+### JSON을 선택한 이유
+
+- 사람이 메모장으로 열어 읽고 고칠 수 있는 **텍스트 형식**입니다.
+- 리스트·딕셔너리 구조를 그대로 저장할 수 있어 `퀴즈 목록 → 각 퀴즈(dict)` 구조와 잘 맞습니다.
+- Python 표준 라이브러리 `json`만으로 읽고 쓸 수 있어 외부 라이브러리 금지 조건에 맞습니다.
+
+### JSON 방식의 한계와 대안
+
+| 한계 | 설명 |
+|---|---|
+| 성능 | 퀴즈 1개만 바꿔도 **파일 전체를 다시 씀**. 데이터가 많아질수록 저장 시간이 늘어남 |
+| 메모리 | 실행할 때 **파일 전체를 한 번에 메모리로 읽음**. 기록(`history`)이 계속 쌓이면 메모리 사용량이 커짐 |
+| 동시 접근 | 여러 프로그램이 동시에 쓰면 내용이 덮어써질 수 있음 (잠금 기능 없음) |
+| 검색 | "점수 80점 이상 기록만" 같은 조건 검색 기능이 없어 전부 읽은 뒤 코드로 걸러야 함 |
+| 손상 위험 | 일부만 깨져도 전체를 못 읽음 → 이 프로젝트는 임시 파일 교체 저장과 `.broken` 백업으로 보완 |
+
+**대안:** 데이터가 커지면 표준 라이브러리 `sqlite3`(파일 하나짜리 데이터베이스)로 바꾸면, 필요한 행만 읽고 쓰거나 조건 검색을 할 수 있습니다. 지금처럼 퀴즈 수십 개·기록 수백 개 수준에서는 JSON이 가장 단순하고 충분합니다.
+
 ---
 
 ## 7. 실행 화면
@@ -185,10 +220,53 @@ codyssey-python-quiz/
 
 ## 8. Git 작업 방식
 
-- 기능 단위로 커밋하고, 커밋 메시지에 종류와 변경 요약을 적었습니다. (`Feat:`, `Refactor:`, `Docs:`, `Chore:`)
-- `feature/play-quiz` 브랜치에서 퀴즈 풀기 기능을, `feature/bonus` 브랜치에서 보너스 기능을 개발한 뒤 `git merge --no-ff`로 `main`에 병합했습니다.
-- 사용한 Git 명령어: `init`, `add`, `commit`, `push`, `checkout`, `merge`, `clone`, `pull`
+### 커밋 규칙과 대표 커밋
 
+기능 단위로 커밋하고, 메시지 앞에 종류를 붙였습니다. (`Feat:` 기능, `Refactor:` 구조 개선, `Docs:` 문서, `Chore:` 설정)
+
+```
+Chore: 프로젝트 초기 설정 (.gitignore, README 뼈대)
+Feat: Quiz 클래스 구현
+Feat: 퀴즈 풀기 기능 구현                       (feature/play-quiz 브랜치)
+Refactor: QuizGame 메뉴 처리와 퀴즈 진행 책임 분리
+Feat: state.json 저장/불러오기 및 손상 파일 복구 구현
+Feat: 힌트 기능 및 힌트 사용 시 점수 차감 추가 (보너스)   (feature/bonus 브랜치)
+Docs: README 작성 및 실행 화면 스크린샷 추가
+```
+
+### 브랜치를 나눈 이유
+
+- `main`은 **항상 실행 가능한 상태**로 유지하고, 새 기능은 별도 브랜치에서 개발했습니다.
+- `feature/play-quiz`: 게임의 핵심인 퀴즈 풀기 기능 / `feature/bonus`: 선택 과제(랜덤·힌트·삭제·기록) 4개
+- 개발 중 코드가 깨져도 `main`에는 영향이 없고, 실패하면 브랜치만 버리면 됩니다. 팀 작업에서 각자 브랜치로 작업한 뒤 합치는 방식을 연습하는 의미도 있습니다.
+
+### `--no-ff` 병합을 선택한 이유
+
+- 기본 병합은 `main`에 새 커밋이 없으면 **fast-forward**로 브랜치 커밋을 `main`에 그대로 이어 붙여서, 브랜치에서 작업했다는 흔적이 그래프에 남지 않습니다.
+- `--no-ff`(no fast-forward)는 항상 **병합 커밋**(`Merge branch 'feature/...'`)을 만들어, 그래프에 "갈라졌다 합쳐진" 모양과 기능 묶음 단위가 남습니다.
+
+| 비교 | fast-forward | `--no-ff` (이 프로젝트) |
+|---|---|---|
+| 그래프 | 한 줄로 이어짐 | 갈라졌다 합쳐지는 모양 |
+| 기능 단위 파악 | 어렵다 | 병합 커밋 하나로 기능 묶음 확인 |
+| 되돌리기 | 커밋을 하나씩 되돌려야 함 | 병합 커밋 하나로 기능 전체를 되돌릴 수 있음 |
+| 단점 | — | 병합 커밋이 늘어 기록이 조금 길어짐 |
+
+### Git 기록 증빙
+
+- 사용한 Git 명령어: `init`, `add`, `commit`, `push`, `checkout`, `merge`, `clone`, `pull`
+- 커밋 20개 이상, 브랜치 2개 생성 후 `main`에 병합 2회
+
+| 항목 | 스크린샷 |
+|---|---|
+| 커밋 기록·브랜치 병합 그래프 (`git log --oneline --graph --all`) | ![git log](docs/screenshots/git_log.png) |
+| 브랜치 목록 (`git branch -a`) | ![git branch](docs/screenshots/git_branch.png) |
+| clone·pull 실행 화면 | ![clone pull](docs/screenshots/clone_pull.png) |
+
+---
 
 ## 9. clone·pull 실습 기록
-- 별도 폴더(`c:\dev\codyssey-clone`)에 저장소를 clone한 뒤, 이 문단을 추가해 commit·push하고 원래 작업 폴더에서 pull로 받아 왔습니다.
+
+1. 별도 폴더에 복제: `git clone https://github.com/chalee-victory/codyssey-python-quiz.git codyssey-clone`
+2. 복제본에서 README에 이 문단을 추가 → `commit` → `push`
+3. 원래 작업 폴더(`c:\dev\codyssey-python-quiz`)에서 `git pull` → `Fast-forward`로 변경 사항이 반영된 것을 `git log`로 확인
